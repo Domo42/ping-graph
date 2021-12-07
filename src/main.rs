@@ -16,17 +16,21 @@ fn main() {
 fn ping_loop(ip_target: IpAddr) {
     let pinger = Pinger::new().unwrap();
     let mut buffer = Buffer::new();
+    let mut counter = 1;
 
     loop {
         match pinger.send(ip_target, &mut buffer) {
-            Ok(return_time) => println!("Reply from '{}' after {}ms", &ip_target, &return_time),
-            Err(error) => println!("Error: {}", error),
+            Ok(return_time) => println!("{}. Reply from '{}' after {}ms", counter, &ip_target, &return_time),
+            Err(error) => println!("{}. Error: {}", counter, error),
         }
 
+        counter += 1;
         thread::sleep(time::Duration::from_millis(1000));
     }
 }
 
+// Attempt to resolve th IP address. First attempt to parse first command line
+// argument directly as IP address. If it is not an IP, perform a DNS lookup for the text.
 fn resolve_ip_target() -> Option<IpAddr> {
     let addr_arg = std::env::args()
         .nth(1)
@@ -45,11 +49,13 @@ fn resolve_ip_target() -> Option<IpAddr> {
     }
 }
 
+// Resolves the given target to an IP address. Returns None on error.
 fn address_lookup(target: &String) -> Option<IpAddr> {
     let resolved_addresses = lookup_host(&target).unwrap_or(vec![]);
-    return resolved_addresses.first().or(Option::None).cloned();
+    return resolved_addresses.into_iter().nth(1);
 }
 
+// Reminder to add a single command line argument, for the target host
 fn print_usage() {
     println!("Error: Expected ping target as first argument, or can't resolve target!");
 }
