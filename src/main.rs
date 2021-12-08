@@ -32,30 +32,34 @@ fn ping_loop(ip_target: IpAddr) {
 // Attempt to resolve th IP address. First attempt to parse first command line
 // argument directly as IP address. If it is not an IP, perform a DNS lookup for the text.
 fn resolve_ip_target() -> Option<IpAddr> {
-    let addr_arg = std::env::args()
-        .nth(1)
-        .unwrap_or(String::from(""));
+    let arg = std::env::args()
+        .nth(1);
 
-    return if addr_arg.is_empty() {
-        Option::None
-    } else {
+    return if let Some(addr_arg) = arg {
         let socket_addr = IpAddr::from_str(&addr_arg);
-        println!("Attempted parse of IP Address: {} ", socket_addr.is_ok());
 
-        return match socket_addr {
-            Ok(addr) => Option::Some(addr),
+        match socket_addr {
+            Ok(addr) => Some(addr),
             Err(_e) => address_lookup(&addr_arg),
-        };
+        }
+    } else {
+        None
     }
 }
 
-// Resolves the given target to an IP address. Returns None on error.
+// Resolves the given target to an IP address. Returns `None` on error.
 fn address_lookup(target: &String) -> Option<IpAddr> {
-    let resolved_addresses = lookup_host(&target).unwrap_or(vec![]);
-    return resolved_addresses.into_iter().nth(1);
+    let resolved_addresses = lookup_host(&target);
+    return match resolved_addresses {
+        Ok(addresses) => Some(addresses[0]),
+        Err(e) => {
+            println!("Error resolving '{}': {}", target, e);
+            None
+        },
+    }
 }
 
-// Reminder to add a single command line argument, for the target host
+// Reminder to add a single command line argument, for the target host.
 fn print_usage() {
     println!("Error: Expected ping target as first argument, or can't resolve target!");
 }
