@@ -16,6 +16,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Error, Write};
 use std::net::IpAddr;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use chrono::Local;
 
@@ -27,6 +28,7 @@ pub struct Reporter {
     target: IpAddr,
     bucket: PingBucket,
     total: PingBucket,
+    bucket_start: Instant,
 }
 
 /// Holds the aggregated information for a single entry in the summary file.
@@ -49,6 +51,7 @@ impl Reporter {
             output_folder: String::from("."),
             bucket: PingBucket::new(),
             total: PingBucket::new(),
+            bucket_start: Instant::now(),
         };
 
         return Ok(reporter);
@@ -60,8 +63,7 @@ impl Reporter {
         self.total.feed_latency(latency);
         println!("{}. Reply from '{}' after {}ms", self.ping_counter, &self.target, latency);
 
-        let data_file = Self::data_file(self)?;
-        return Self::write_raw_data(self, &data_file, latency, false);
+        return Self::update_files(self, latency, false);
     }
 
     /// Reports that a ping has not been returned.
@@ -70,8 +72,7 @@ impl Reporter {
         self.total.feed_lost_ping();
         println!("{}. Error: {}", self.ping_counter, error);
 
-        let data_file = Self::data_file(self)?;
-        return Self::write_raw_data(self, &data_file, 0, true);
+        return Self::update_files(self, 0, true);
     }
 
     /// Prints the ping statistics of all handled pings as readable output to stdout.
@@ -87,11 +88,19 @@ impl Reporter {
         );
         println!("Approximate round trip times in milli-seconds:");
         println!(
-            "    Minimum = {}, Maximum = {}, Average = {:3.1}",
+            "    Minimum = {}ms, Maximum = {}ms, Average = {:3.1}ms",
             self.total.latency_min,
             self.total.latency_max,
             self.total.latency_avg
         )
+    }
+
+    fn update_files(&mut self, latency: u32, is_packet_loss:bool) -> Result<(), Error> {
+        let  summary_file = Self::summary_file(self)?;
+        Self::check_update_summary(self, &summary_file)?;
+
+        let data_file = Self::data_file(self)?;
+        return Self::write_raw_data(self, &data_file, latency, is_packet_loss);
     }
 
     fn data_file(&self) -> Result<File, Error> {
@@ -114,12 +123,53 @@ impl Reporter {
         return file;
     }
 
-    fn write_raw_data(&self, mut data_file: &File, latency: u32, packet_loss: bool) -> Result<(), Error> {
-        let now = Local::now();
-        let date_str : String = now.format("%FT%T%.3f%z").to_string();
-        let line = format!("{}, {}, {}, {}\n", date_str, self.target, latency, packet_loss);
+    fn write_raw_data(&self, mut data_file: &File, latency: u32, is_packet_loss: bool) -> Result<(), Error> {
+        let date_str = now_iso();
+        let line = format!("{}, {}, {}, {}\n", date_str, self.target, latency, is_packet_loss);
 
         return data_file.write(line.as_bytes()).map(|_bytes_written| {});
+    }
+
+    fn summary_file(&self) -> Result<File, Error> {
+        let path = Path::new(&self.output_folder).join("ping-summary.csv");
+        let is_new_file = !path.exists();
+
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(path);
+
+        if let Ok(mut f) = file.as_ref() {
+            if is_new_file {
+                // write header if new file did not exist before
+                f.write("Time, Target, Sent, Lost, Lost (%), Min Latency (ms), Max Latency (ms), Avg Latency (ms)\n".as_bytes())?;
+            }
+        }
+
+        return file;
+    }
+
+    fn check_update_summary(&mut self, mut summary_file: &File) -> Result<(), Error> {
+        let since_last = self.bucket_start.elapsed();
+        if since_last.ge(&Duration::from_secs(600)) {
+            let date_str = now_iso();
+            let line = format!("{}, {}, {}, {}, {}, {}, {}, {}",
+                date_str,
+                self.target,
+                self.bucket.ping_attempts,
+                self.bucket.pings_lost,
+                self.bucket.lost_percentage(),
+                self.bucket.latency_min,
+                self.bucket.latency_max,
+                self.bucket.latency_avg,
+            );
+
+            self.bucket_start = Instant::now();
+            return summary_file.write(line.as_bytes()).map(|_| {});
+        } else {
+            return Ok(());
+        }
     }
 }
 
@@ -160,4 +210,10 @@ impl PingBucket {
         let a = self.pings_lost as f32 / self.ping_attempts as f32;
         return 100.0 * a;
     }
+}
+
+// create an ISO 8601 string with the current time.
+fn now_iso() -> String {
+    let now = Local::now();
+    return now.format("%FT%T%.3f%z").to_string();
 }
