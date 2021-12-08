@@ -61,6 +61,7 @@ impl Reporter {
     pub fn report_value(&mut self, latency: u32) -> Result<(), Error> {
         self.ping_counter += 1;
         self.total.feed_latency(latency);
+        self.bucket.feed_latency(latency);
         println!("{}. Reply from '{}' after {}ms", self.ping_counter, &self.target, latency);
 
         return Self::update_files(self, latency, false);
@@ -70,6 +71,7 @@ impl Reporter {
     pub fn report_packet_loss(&mut self, error: winping::Error ) -> Result<(), Error> {
         self.ping_counter += 1;
         self.total.feed_lost_ping();
+        self.bucket.feed_lost_ping();
         println!("{}. Error: {}", self.ping_counter, error);
 
         return Self::update_files(self, 0, true);
