@@ -16,3 +16,6 @@ Cargo.lock
 # IDEA project files
 /.idea
 *.iml
+
+# test data created by the program itself
+*.csv
