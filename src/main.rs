@@ -29,18 +29,24 @@ fn main() {
     let keep_going = keep_going_shared.clone();
 
     ctrlc::set_handler(move || {
-        println!("Received STOP signal.");
         keep_going_shared.store(false, Ordering::Relaxed);
     }).expect("Error setting ctrl-c signal handler.");
 
     let ip_target = resolve_ip_target();
-    match ip_target {
+    let reporter = match ip_target {
         Some(addr) => ping_loop(addr, &keep_going),
-        None => print_usage(),
+        None => {
+            print_usage();
+            None
+        },
     };
+
+    if let Some(ping_report) = reporter {
+        ping_report.print_total_stats();
+    }
 }
 
-fn ping_loop(ip_target: IpAddr, keep_going: &Arc<AtomicBool>) {
+fn ping_loop(ip_target: IpAddr, keep_going: &Arc<AtomicBool>) -> Option<Reporter> {
     let pinger = Pinger::new().unwrap();
     let mut reporter = Reporter::new(&ip_target).unwrap();
     let mut buffer = Buffer::new();
@@ -57,6 +63,8 @@ fn ping_loop(ip_target: IpAddr, keep_going: &Arc<AtomicBool>) {
 
         thread::sleep(time::Duration::from_millis(1000));
     }
+
+    return Some(reporter);
 }
 
 // Attempt to resolve th IP address. First attempt to parse first command line
