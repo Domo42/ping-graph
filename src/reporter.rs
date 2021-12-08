@@ -156,7 +156,7 @@ impl Reporter {
         let since_last = self.bucket_start.elapsed();
         if since_last.ge(&Duration::from_secs(600)) {
             let date_str = now_iso();
-            let line = format!("{}, {}, {}, {}, {}, {}, {}, {}",
+            let line = format!("{}, {}, {}, {}, {:02.1}, {}, {}, {:3.1}\n",
                 date_str,
                 self.target,
                 self.bucket.ping_attempts,
