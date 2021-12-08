@@ -28,7 +28,7 @@ pub struct Reporter {
 impl Reporter {
     pub fn new(ip_target: &IpAddr) -> Result<Self, Error> {
         let reporter = Reporter {
-            ping_counter: 1,
+            ping_counter: 0,
             target: ip_target.clone(),
             output_folder: String::from("."),
         };
@@ -42,7 +42,7 @@ impl Reporter {
         println!("{}. Reply from '{}' after {}ms", self.ping_counter, &self.target, latency);
 
         let data_file = Self::data_file(self)?;
-        return write_raw_data(&data_file, latency, false);
+        return Self::write_raw_data(self, &data_file, latency, false);
     }
 
     /// Reports that a ping has not been returned.
@@ -51,24 +51,34 @@ impl Reporter {
         println!("{}. Error: {}", self.ping_counter, error);
 
         let data_file = Self::data_file(self)?;
-        return write_raw_data(&data_file, 0, true);
+        return Self::write_raw_data(self, &data_file, 0, true);
     }
 
     fn data_file(&self) -> Result<File, Error> {
         let path = Path::new(&self.output_folder).join("ping-data.csv");
+        let is_new_file = !path.exists();
+
         let file = OpenOptions::new()
             .create(true)
             .write(true)
             .append(true)
             .open(path);
+
+        if let Ok(mut f) = file.as_ref() {
+            if is_new_file {
+                // write header if new file did not exist before
+                f.write("Time,Target,Latency (ms),IsPacketLoss\n".as_bytes())?;
+            }
+        }
+
         return file;
     }
-}
 
-fn write_raw_data(mut data_file: &File, latency: u32, packet_loss: bool) -> Result<(), Error> {
-    let now = Local::now();
-    let date_str : String = now.format("%FT%T%.3f%z").to_string();
-    let line = format!("{},{},{}\n", date_str, latency, packet_loss);
+    fn write_raw_data(&self, mut data_file: &File, latency: u32, packet_loss: bool) -> Result<(), Error> {
+        let now = Local::now();
+        let date_str : String = now.format("%FT%T%.3f%z").to_string();
+        let line = format!("{}, {}, {}, {}\n", date_str, self.target, latency, packet_loss);
 
-    return data_file.write(line.as_bytes()).map(|_bytes_written| {});
+        return data_file.write(line.as_bytes()).map(|_bytes_written| {});
+    }
 }
