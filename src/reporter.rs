@@ -168,6 +168,7 @@ impl Reporter {
             );
 
             self.bucket_start = Instant::now();
+            self.bucket = PingBucket::new();
             return summary_file.write(line.as_bytes()).map(|_| {});
         } else {
             return Ok(());
