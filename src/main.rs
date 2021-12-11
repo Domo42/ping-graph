@@ -19,10 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use dns_lookup::lookup_host;
 use winping::{Buffer, Pinger};
-
-use reporter::Reporter;
-
-mod reporter;
+use ping_graph::reporter::{Reporter};
 
 fn main() {
     let keep_going_shared = Arc::new(AtomicBool::new(true));
@@ -48,7 +45,7 @@ fn main() {
 
 fn ping_loop(ip_target: IpAddr, keep_going: &Arc<AtomicBool>) -> Option<Reporter> {
     let pinger = Pinger::new().unwrap();
-    let mut reporter = Reporter::new(&ip_target).unwrap();
+    let mut reporter = Reporter::new(&ip_target);
     let mut buffer = Buffer::new();
 
     while keep_going.load(Ordering::Relaxed) {

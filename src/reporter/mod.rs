@@ -19,6 +19,8 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use chrono::Local;
+#[cfg(test)]
+pub mod tests;
 
 /// The reporter creates two csv files, one data file 'ping-data.cvs' with the raw information about
 /// each ping and a 'ping-summary.csv' where the data is aggregated in 10min buckets.
@@ -44,7 +46,7 @@ struct PingBucket {
 /// The reporter creates two csv files, one data file 'ping-data.cvs' with the raw information about
 /// each ping and a 'ping-summary.csv' where the data is aggregated in 10min buckets.
 impl Reporter {
-    pub fn new(ip_target: &IpAddr) -> Result<Self, Error> {
+    pub fn new(ip_target: &IpAddr) -> Reporter {
         let reporter = Reporter {
             ping_counter: 0,
             target: ip_target.clone(),
@@ -54,7 +56,7 @@ impl Reporter {
             bucket_start: Instant::now(),
         };
 
-        return Ok(reporter);
+        return reporter;
     }
 
     /// Report a returned ping within the given latency.
@@ -194,14 +196,14 @@ impl PingBucket {
 
         let latency_float = latency as f32;
 
-        if self.ping_count == 0 {
+        self.ping_count += 1;
+        if self.ping_count == 1 {
             self.latency_avg = latency_float;
         } else {
             self.latency_avg = self.latency_avg + (latency_float - self.latency_avg)/(self.ping_count as f32);
         }
 
         self.ping_attempts += 1;
-        self.ping_count += 1;
     }
 
     fn feed_lost_ping(&mut self) {
